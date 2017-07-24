@@ -8,107 +8,82 @@
 namespace 
 thodd::tuple
 {
-    template<
-        size_t index_c>
-    constexpr auto 
-    __accumulate_if (
-        auto&& __func,
-        auto&& __accumulator, 
-        auto&& __predicate,
-        auto&& __state, 
-        auto&& __tuple)
-    -> decltype(auto)
-    {
-        if constexpr (index_c < std::tuple_size<std::decay_t<decltype(__tuple)>>::value)
-        {    
-            if(std::forward<decltype(__predicate)>(__predicate) (std::forward<decltype(__state)>(__state)))                
-                return 
-                __accumulate_if<index_c + 1> (
-                    std::forward<decltype(__func)>(__func), 
-                    std::forward<decltype(__accumulator)>(__accumulator),
-                    std::forward<decltype(__predicate)>(__predicate), 
-                    std::forward<decltype(__accumulator)>(__accumulator)(
-                        std::forward<decltype(__state)>(__state), 
-                        __func(std::get<index_c>(__tuple))), 
-                    std::forward<decltype(__tuple)>(__tuple)) ;
-            else 
-                return 
-                __accumulate_if<index_c + 2> (
-                    std::forward<decltype(__func)>(__func), 
-                    std::forward<decltype(__accumulator)>(__accumulator), 
-                    std::forward<decltype(__predicate)>(__predicate),
-                    std::forward<decltype(__accumulator)>(__accumulator)(
-                        std::forward<decltype(__state)>(__state), 
-                        __func(std::get<index_c>(__tuple))), 
-                    std::forward<decltype(__tuple)>(__tuple)) ;
-        }
-        else
-            return 
-            __state ;
-    }
-
     constexpr auto 
     accumulate_if (
+        auto&& __predicate,
         auto&& __func, 
-        auto&& __accumulator, 
-        auto&& __predicate, 
-        auto&& __state, 
+        auto&& __accumulator,
+        auto&& __initial, 
         auto&& __tuple)
     -> decltype(auto)
     {
-        return 
-        __accumulate_if<0u>(
-            std::forward<decltype(__func)>(__func),
-            std::forward<decltype(__accumulator)>(__accumulator), 
-            std::forward<decltype(__predicate)>(__predicate),
-            std::forward<decltype(__state)>(__state), 
+        return
+        std::apply (
+            [&] (auto && ... __item) 
+            {
+                std::decay_t<decltype(__initial)> __tmp = std::forward<decltype(__initial)>(__initial) ;
+                ((__tmp = std::forward<decltype(__predicate)>(__predicate)(__tmp, __item) ? 
+                            std::forward<decltype(__accumulator)>(__accumulator)(
+                                __tmp, 
+                                std::forward<decltype(__func)>(__func)(__item)) : 
+                            __tmp), ...) ;
+
+                return 
+                __tmp ;
+            },
             std::forward<decltype(__tuple)>(__tuple)) ;
+
     }
+
 
     constexpr auto 
     accumulate (
-        auto&& __func,
-        auto&& __accumulator, 
-        auto&& __state, 
-        auto&& __tuple)
-    -> decltype(auto)
-    {
-        return 
-        __accumulate_if<0u> ( 
-            std::forward<decltype(__func)>(__func),
-            std::forward<decltype(__accumulator)>(__accumulator), 
-            [] (auto&&... __args) { return true; },
-            std::forward<decltype(__state)>(__state), 
-            std::forward<decltype(__tuple)>(__tuple)) ;
-    }
-
-    constexpr auto
-    iterate_if (
         auto&& __func, 
-        auto&& __predicate, 
+        auto&& __accumulator,
+        auto&& __initial, 
         auto&& __tuple)
     -> decltype(auto)
     {
-        return 
-        accumulate_if (
-            std::forward<decltype(__func)>(__func), 
-            [&__tuple] (auto&& __state, auto&& __res) { return std::forward<decltype(__tuple)>(__tuple) ; }, 
-            std::forward<decltype(__predicate)>(__predicate), 
-            std::forward<decltype(__tuple)>(__tuple), 
+        return
+        accumulate_if(
+            [](auto&& ... __args) { return true ; },
+            std::forward<decltype(__func)>(__func),
+            std::forward<decltype(__accumulator)>(__accumulator),
+            std::forward<decltype(__initial)>(__initial),
             std::forward<decltype(__tuple)>(__tuple)) ;
     }
 
 
-    constexpr auto
+    
+    constexpr void
+    iterate_if (
+        auto&& __pred,
+        auto&& __func, 
+        auto&& __tuple)
+    {
+        std::apply(
+            [&__func, &__pred] (auto&& ... __item) 
+            { 
+                auto __each = 
+                [&__func, &__pred] (auto&& ___item) 
+                { 
+                    if(std::forward<decltype(__pred)>(__pred)(___item))
+                        std::forward<decltype(__func)>(__func)(std::forward<decltype(___item)>(___item)) ;
+                } ;
+              
+                (__each (std::forward<decltype(__item)>(__item)), ... ) ;
+            }, 
+            std::forward<decltype(__tuple)>(__tuple)) ;
+    }
+
+    constexpr auto 
     iterate (
         auto&& __func, 
         auto&& __tuple)
-    -> decltype(auto)
     {
-        return 
-        iterate_if (
-            std::forward<decltype(__func)>(__func), 
-            [] (auto&&... __args) { return true; }, 
+        std::apply(
+            [&__func] (auto&& ... __item) 
+            { (std::forward<decltype(__func)>(__func)(std::forward<decltype(__item)>(__item)), ...) ; }, 
             std::forward<decltype(__tuple)>(__tuple)) ;
     }
 }
